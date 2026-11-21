@@ -1,0 +1,37 @@
+{
+  "question": "How well do heat pumps work in cold climates?",
+  "reference_year": 2026,
+  "robots": {
+    "hvac-talk-forum.test": "User-agent: *\nDisallow: /members/\n"
+  },
+  "documents": [
+    {
+      "url": "https://energy-efficiency.gov.test/home/heat-pump-basics",
+      "file": "energy-efficiency-basics.html"
+    },
+    {
+      "url": "https://coldclimate-lab.university.edu.test/field-studies/air-source-heat-pumps-winter",
+      "file": "university-field-monitoring.html"
+    },
+    {
+      "url": "https://efficiency-partnership.org.test/programs/cold-climate-heat-pump-specification",
+      "file": "efficiency-partnership-spec.html"
+    },
+    {
+      "url": "https://energy-outlook.int.test/reports/heat-pumps-europe",
+      "file": "energy-outlook-europe.html"
+    },
+    {
+      "url": "https://homeowner-news.com.test/2024/11/heat-pump-winter-tips",
+      "file": "homeowner-news-tips.html"
+    },
+    {
+      "url": "https://hvac-talk-forum.test/threads/heat-pumps-useless-in-cold",
+      "file": "hvac-forum-thread.html"
+    },
+    {
+      "url": "https://hvac-talk-forum.test/members/heat-pump-cold-climate-wiki",
+      "file": "hvac-forum-members.html"
+    }
+  ]
+}
