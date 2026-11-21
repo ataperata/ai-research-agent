@@ -9,7 +9,11 @@ configured, sentences the heuristic finds borderline get a second opinion from t
 from __future__ import annotations
 
 import itertools
+import math
 import re
+from collections import Counter
+from functools import lru_cache
+from typing import NamedTuple
 
 from .llm.base import LLMClient, LLMError
 from .models import Report, ReportSentence, Source
@@ -19,13 +23,53 @@ SUPPORTED = 0.55
 WEAK = 0.35
 
 
-def _windows(source: Source) -> list[str]:
+class _Passage(NamedTuple):
+    """A sentence or window with the features support_score needs, computed once."""
+
+    text: str
+    terms: frozenset[str]
+    grams: Counter[str]
+    norm: float
+    numbers: frozenset[str]
+
+
+def _passage(text: str) -> _Passage:
+    grams = char_ngrams(text)
+    return _Passage(
+        text,
+        frozenset(content_terms(text)),
+        grams,
+        math.sqrt(sum(v * v for v in grams.values())),
+        frozenset(numbers_in(text)),
+    )
+
+
+@lru_cache(maxsize=64)
+def _prepared_windows(paragraphs: tuple[str, ...]) -> tuple[_Passage, ...]:
+    # Every sentence that cites a source is checked against the same windows, so their
+    # terms and trigrams are computed once per source instead of once per sentence.
     sentences: list[str] = []
-    for paragraph in source.document.paragraphs:
+    for paragraph in paragraphs:
         sentences.extend(split_sentences(paragraph))
     windows = list(sentences)
     windows.extend(f"{a} {b}" for a, b in itertools.pairwise(sentences))
-    return windows
+    return tuple(_passage(window) for window in windows)
+
+
+def _score(claim: _Passage, passage: _Passage) -> float:
+    # Same arithmetic as support_score and text.cosine, on precomputed features.
+    if not claim.terms:
+        return 0.0
+    recall = len(claim.terms & passage.terms) / len(claim.terms)
+    if not claim.grams or not passage.grams:
+        similarity = 0.0
+    else:
+        # Counts are integers, so walking the smaller side gives the same dot product.
+        small, large = sorted((claim.grams, passage.grams), key=len)
+        dot = sum(count * large.get(gram, 0) for gram, count in small.items())
+        norm = claim.norm * passage.norm
+        similarity = dot / norm if norm else 0.0
+    return round(0.75 * recall + 0.25 * similarity, 3)
 
 
 def support_score(sentence: str, passage: str) -> float:
@@ -40,15 +84,16 @@ def support_score(sentence: str, passage: str) -> float:
 def best_support(sentence: str, source: Source) -> tuple[float, str, set[str]]:
     """Return (score, best passage, numbers missing from that passage)."""
     text = strip_citations(sentence)
-    wanted = numbers_in(text)
+    claim = _passage(text)
+    wanted = set(claim.numbers)
     best = (0.0, "", wanted)
-    for window in _windows(source):
-        score = support_score(text, window)
-        missing = wanted - numbers_in(window)
+    for window in _prepared_windows(tuple(source.document.paragraphs)):
+        score = _score(claim, window)
+        missing = wanted - window.numbers
         if missing:
             score = min(score, WEAK - 0.01)
         if score > best[0]:
-            best = (score, window, missing)
+            best = (score, window.text, missing)
     return best
 
 

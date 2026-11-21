@@ -88,3 +88,36 @@ def test_flagged_sentences_appear_in_markdown_verification_table():
     assert "1 of 2 sentences were flagged" in md
     assert "**(flagged)**" in md
     assert "not supported by citation" in md
+
+
+def test_best_support_matches_a_plain_scan_of_every_window():
+    import itertools
+
+    from research_agent.text import numbers_in, split_sentences, strip_citations
+    from research_agent.verify import WEAK, best_support, support_score
+
+    def reference(sentence, source):
+        text = strip_citations(sentence)
+        wanted = numbers_in(text)
+        sentences = [s for p in source.document.paragraphs for s in split_sentences(p)]
+        windows = sentences + [f"{a} {b}" for a, b in itertools.pairwise(sentences)]
+        best = (0.0, "", wanted)
+        for window in windows:
+            score = support_score(text, window)
+            missing = wanted - numbers_in(window)
+            if missing:
+                score = min(score, WEAK - 0.01)
+            if score > best[0]:
+                best = (score, window, missing)
+        return best
+
+    claims = [
+        "The extension reduced total electricity use by about 0.5 percent per day. [1]",
+        "Savings were largest in the evening hours. [1]",
+        "Demand rose by about 3 percent. [2]",
+        "Daylight saving time increased residential electricity demand. [2]",
+        "Unrelated words entirely.",
+    ]
+    for claim in claims:
+        for source in SOURCES.values():
+            assert best_support(claim, source) == reference(claim, source)
