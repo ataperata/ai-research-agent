@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -48,13 +49,19 @@ class ResearchAgent:
     async def _gather_results(self, plan: planner.Plan) -> list[tuple[SearchResult, list[str]]]:
         found: dict[str, tuple[SearchResult, list[str], tuple[int, int]]] = {}
         errors = 0
-        for qi, sq in enumerate(plan.subqueries):
-            try:
-                results = await self.search.search(sq.query, self.settings.results_per_query)
-            except SearchError as exc:
+        # The sub-queries are independent, so they go out together. gather keeps plan
+        # order, so the merge below, the log and the report match a sequential run.
+        outcomes = await asyncio.gather(
+            *(self.search.search(sq.query, self.settings.results_per_query) for sq in plan.subqueries),
+            return_exceptions=True,
+        )
+        for qi, (sq, results) in enumerate(zip(plan.subqueries, outcomes, strict=True)):
+            if isinstance(results, SearchError):
                 errors += 1
-                self.log(f"search failed for {sq.query!r}: {exc}")
+                self.log(f"search failed for {sq.query!r}: {results}")
                 continue
+            if isinstance(results, BaseException):
+                raise results
             self.log(f"search [{sq.facet}] {sq.query!r}: {len(results)} results")
             for rank, result in enumerate(results):
                 if result.url in found:
