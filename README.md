@@ -207,3 +207,7 @@ src/research_agent/
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Hosted demo
+
+`app.py` is a small WSGI front end for the offline demo. It runs the real pipeline on the bundled corpus for each request, with no keys and no outside network calls. Run it locally with `python app.py` and open http://127.0.0.1:8000, or import the repo into Vercel: it picks up `app.py` as the Python entry point.
